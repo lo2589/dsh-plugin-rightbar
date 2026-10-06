@@ -1,0 +1,6 @@
+# dsh-plugin-rightbar — host entry. The client half registers under the package
+# name (`dsh-plugin-rightbar`); `rightbar` is the cordis entry id.
+- insert:
+    - id: rightbar
+      name: dsh-plugin-rightbar
+      config: {}

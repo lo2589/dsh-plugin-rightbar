@@ -1,0 +1,22 @@
+{
+  "name": "dsh-plugin-rightbar",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A shared right sidebar for dsh: one column beside Chat, plugins contribute tabs into the `rightbar.tab` slot instead of each floating its own fixed panel.",
+  "type": "commonjs",
+  "main": "src/host.js",
+  "exports": {
+    ".": "./src/host.js",
+    "./client": "./src/client.js",
+    "./package.json": "./package.json"
+  },
+  "files": ["src", "cordis.patch.yml", "README.md"],
+  "dsh": {
+    "bundle": {
+      "patch": "cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web"
+    }
+  }
+}

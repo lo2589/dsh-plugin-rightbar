@@ -13,6 +13,11 @@
 // 别的插件这样接入（slots.inject 会等到声明出现再注册，加载先后无所谓）：
 //   slots.inject('rightbar.tab', () => slots.register(
 //     { name: 'rightbar.tab', id: 'my-plugin', label: '我的面板', order: 20 }, MyPanel))
+// 接入方要切到自己的标签时发窗口事件，不 import 本插件（没装 rightbar 时没人听，无害）：
+//   window.dispatchEvent(new CustomEvent('rightbar:activate', { detail: { id: 'my-plugin' } }))
+//
+// 层级：rightbar 是右侧唯一的管理者，z-index 高过还没迁移进来的浮动面板（500–530），
+// 低于全屏模态（9997+）。之前写成 40，被媒体展示台（500）整块盖住。
 window.__ModuleLoader__.load({
   id: 'dsh-plugin-rightbar',
   factory: (require) => {
@@ -25,6 +30,8 @@ window.__ModuleLoader__.load({
     var STRIP = 32
     var MIN_WIDTH = 280
     var DEFAULT_WIDTH = 420
+    var LAYER = 600
+    var ACTIVATE_EVENT = 'rightbar:activate'
 
     // ---- per-viewer prefs (localStorage may be missing or throw) ----------
 
@@ -95,6 +102,20 @@ window.__ModuleLoader__.load({
       }, [width, setWidth])
     }
 
+    /** 接入方发 rightbar:activate { id }：切到那个标签，收起着就先展开。 */
+    function useActivation(pick, setOpen) {
+      React.useEffect(function () {
+        var onActivate = function (e) {
+          var id = e && e.detail ? e.detail.id : undefined
+          if (typeof id !== 'string') return
+          pick(id)
+          setOpen(true)
+        }
+        window.addEventListener(ACTIVATE_EVENT, onActivate)
+        return function () { window.removeEventListener(ACTIVATE_EVENT, onActivate) }
+      }, [pick, setOpen])
+    }
+
     // ---- views ---------------------------------------------------------------
 
     function TabButton(props) {
@@ -134,9 +155,10 @@ window.__ModuleLoader__.load({
         var open = openState[0]
         var width = widthState[0]
         var activeId = tabs.some(function (t) { return t.id === activeState[0] }) ? activeState[0] : (tabs.length > 0 ? tabs[0].id : null)
-        var setOpen = function (value) { openState[1](value); writePref('open', value) }
-        var pick = function (id) { activeState[1](id); writePref('active', id) }
+        var setOpen = React.useCallback(function (value) { openState[1](value); writePref('open', value) }, [])
+        var pick = React.useCallback(function (id) { activeState[1](id); writePref('active', id) }, [])
         var onGrip = useResize(width, widthState[1])
+        useActivation(pick, setOpen)
         useReservedWidth(tabs.length === 0 ? 0 : (open ? width : STRIP))
         if (tabs.length === 0) return null
         if (!open) return h(Strip, { tabs: tabs, onOpen: function (id) { pick(id); setOpen(true) } })
@@ -152,11 +174,11 @@ window.__ModuleLoader__.load({
     function DemoTab(props) {
       return h('div', { className: 'rb-demo' },
         h('p', null, props.text),
-        h('p', { className: 'rb-demo-note' }, '这是 rightbar 原型自带的演示标签。localStorage 设 rightbar.demo=false 可关掉。'))
+        h('p', { className: 'rb-demo-note' }, '这是 rightbar 自带的演示标签，默认关闭；localStorage 设 rightbar.demo=true 打开。'))
     }
 
     function registerDemoTabs(slots) {
-      if (readPref('demo', true) === false) return
+      if (readPref('demo', false) !== true) return
       slots.inject(TAB_SLOT, function () {
         return [
           slots.register({ name: TAB_SLOT, id: 'rightbar-demo-a', label: '演示 A', order: 90 },
@@ -171,7 +193,7 @@ window.__ModuleLoader__.load({
 
     var CSS = [
       '#root{width:calc(100vw - var(' + WIDTH_VAR + ',0px)) !important;min-width:0}',
-      '.rb-panel,.rb-strip{position:fixed;top:0;right:0;bottom:0;z-index:40;pointer-events:auto;display:flex;flex-direction:column;box-sizing:border-box;',
+      '.rb-panel,.rb-strip{position:fixed;top:0;right:0;bottom:0;z-index:' + LAYER + ';pointer-events:auto;display:flex;flex-direction:column;box-sizing:border-box;',
       'background:var(--dsw-alias-bg-layer-1,#fff);color:var(--dsw-alias-label-primary,inherit);border-left:1px solid var(--dsw-alias-border-l3,#e5e7eb)}',
       '.rb-panel{width:var(' + WIDTH_VAR + ')}',
       '.rb-strip{width:' + STRIP + 'px;align-items:stretch;padding-top:8px;gap:4px}',

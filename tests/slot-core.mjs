@@ -60,7 +60,7 @@ function slotsOver(core) {
 function loadPlugin() {
   const factories = new Map()
   const context = {
-    window: { __ModuleLoader__: { load: r => factories.set(r.id, r.factory) }, localStorage: { getItem: () => null, setItem() {} }, innerWidth: 1600, addEventListener() {}, removeEventListener() {} },
+    window: { __ModuleLoader__: { load: r => factories.set(r.id, r.factory) }, localStorage: { getItem: k => (k === 'rightbar.demo' ? 'true' : null), setItem() {} }, innerWidth: 1600, addEventListener() {}, removeEventListener() {} },
     document: { documentElement: { style: { setProperty() {}, removeProperty() {} } }, createElement: () => ({ dataset: {}, remove() {} }), head: { appendChild() {} } },
     JSON, Math,
   }

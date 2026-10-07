@@ -61,12 +61,18 @@ function loadPlugin() {
   const factories = new Map()
   const context = {
     window: { __ModuleLoader__: { load: r => factories.set(r.id, r.factory) }, localStorage: { getItem: k => (k === 'rightbar.demo' ? 'true' : null), setItem() {} }, innerWidth: 1600, addEventListener() {}, removeEventListener() {} },
-    document: { documentElement: { style: { setProperty() {}, removeProperty() {} } }, createElement: () => ({ dataset: {}, remove() {} }), head: { appendChild() {} } },
+    document: { body: {}, documentElement: { style: { setProperty() {}, removeProperty() {} } }, createElement: () => ({ dataset: {}, remove() {} }), head: { appendChild() {} } },
     JSON, Math,
   }
   vm.createContext(context)
   vm.runInContext(fs.readFileSync(path.join(PLUGIN, 'src', 'client.js'), 'utf8'), context)
-  return factories.get('dsh-plugin-rightbar')(id => { if (id === 'react') return React; throw new Error('unexpected require ' + id) })
+  // 服务端渲染不支持 portal：测试里让 createPortal 原样返回元素，只验证渲染出来的内容。
+  const ReactDOM = { createPortal: element => element }
+  return factories.get('dsh-plugin-rightbar')(id => {
+    if (id === 'react') return React
+    if (id === 'react-dom') return ReactDOM
+    throw new Error('unexpected require ' + id)
+  })
 }
 
 const core = new SlotCore()

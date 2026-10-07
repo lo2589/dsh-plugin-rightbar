@@ -16,6 +16,11 @@
 // 接入方要切到自己的标签时发窗口事件，不 import 本插件（没装 rightbar 时没人听，无害）：
 //   window.dispatchEvent(new CustomEvent('rightbar:activate', { detail: { id: 'my-plugin' } }))
 //
+// 挂载点：面板 portal 到 document.body，不留在 shell.overlay 的 DOM 里。overlay 层在宿主
+// .frame（overflow:hidden）里面，而 #root 被让窄后面板整个落在 .frame 的盒子外；Chrome 让
+// fixed 元素逃出祖先裁剪，Safari（WebKit 26.4 实测）照样按 .frame 裁 —— DOM 在、能点中、
+// 屏幕上一片空白。portal 不影响 React context 与事件冒泡，renderSlot 照常。
+//
 // 层级：rightbar 是右侧唯一的管理者，z-index 高过还没迁移进来的浮动面板（500–530），
 // 低于全屏模态（9997+）。之前写成 40，被媒体展示台（500）整块盖住。
 window.__ModuleLoader__.load({
@@ -23,6 +28,7 @@ window.__ModuleLoader__.load({
   factory: (require) => {
     var module = { exports: {} }
     var React = require('react')
+    var ReactDOM = require('react-dom')
     var h = React.createElement
 
     var TAB_SLOT = 'rightbar.tab'
@@ -161,11 +167,13 @@ window.__ModuleLoader__.load({
         useActivation(pick, setOpen)
         useReservedWidth(tabs.length === 0 ? 0 : (open ? width : STRIP))
         if (tabs.length === 0) return null
-        if (!open) return h(Strip, { tabs: tabs, onOpen: function (id) { pick(id); setOpen(true) } })
-        return h(Panel, {
-          tabs: tabs, activeId: activeId, renderSlot: props.renderSlot,
-          onPick: pick, onCollapse: function () { setOpen(false) }, onGrip: onGrip,
-        })
+        var view = !open
+          ? h(Strip, { tabs: tabs, onOpen: function (id) { pick(id); setOpen(true) } })
+          : h(Panel, {
+            tabs: tabs, activeId: activeId, renderSlot: props.renderSlot,
+            onPick: pick, onCollapse: function () { setOpen(false) }, onGrip: onGrip,
+          })
+        return ReactDOM.createPortal(view, document.body)
       }
     }
 

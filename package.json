@@ -10,7 +10,30 @@
     "./client": "./src/client.js",
     "./package.json": "./package.json"
   },
-  "files": ["src", "cordis.patch.yml", "README.md"],
+  "files": [
+    "src",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "web",
+    "layout",
+    "sidebar",
+    "slot"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lo2589/dsh-plugin-rightbar.git"
+  },
+  "homepage": "https://github.com/lo2589/dsh-plugin-rightbar#readme",
+  "bugs": {
+    "url": "https://github.com/lo2589/dsh-plugin-rightbar/issues"
+  },
   "dsh": {
     "bundle": {
       "patch": "cordis.patch.yml"

@@ -3,7 +3,7 @@
 //
 //   cd $DSH_REPO && node --import tsx/esm /path/to/dsh-plugin-rightbar/tests/slot-core.mjs
 //
-// DSH_REPO 默认是本插件同级目录 deepseek-harness（与 lens/scripts/install.sh 同一约定）。
+// DSH_REPO 默认是本插件同级目录 deepseek-harness；不在同级就显式给。
 import fs from 'node:fs'
 import vm from 'node:vm'
 import path from 'node:path'

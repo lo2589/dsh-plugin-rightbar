@@ -194,6 +194,17 @@ node tests/skill-register.mjs   # 自带的 rightbar-tab skill：字段合法性
 node tests/adopt.mjs            # 让位开关：默认关、只认声明、不碰自己的面板、卸载还原、all 模式的保守判据
 ```
 
+`tests/skill-registry.mjs` 是**集成**检查：把 `src/skill.js` 挂到真的 `SkillRegistry` 上，
+确认目录里有它、正文取得到、卸载后消失。它也需要 harness，跑法跟 slot-core 一样（换文件名即可）：
+
+```bash
+cd /path/to/deepseek-harness
+DSH_REPO=$PWD node --import tsx/esm /path/to/dsh-plugin-rightbar/tests/skill-registry.mjs
+```
+
+这条是必需的，不是锦上添花：单元测试里的 `ctx.skills.register` 是假的，抓不到"字段缺失"——
+`source` 漏过一次，结果是 skill **能列出、加载时抛 TypeError**（目录里看得见却用不了）。
+
 ---
 
 ## 常见问题

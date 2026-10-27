@@ -15,6 +15,7 @@ const { readFileSync } = require('node:fs')
 const { join } = require('node:path')
 
 const SKILL_NAME = 'rightbar-tab'
+const SKILL_SOURCE = 'dsh-plugin-rightbar'
 const BODY = join(__dirname, '..', 'skills', 'rightbar-tab.md')
 const DESCRIPTION = 'Attach a panel to the DeepSeek Harness web right sidebar: register a tab into the '
   + '`rightbar.tab` slot instead of pinning a `position:fixed` panel. Use when a web plugin needs a tray, '
@@ -33,6 +34,7 @@ module.exports = {
       ctx.logger?.warn?.(`rightbar: skill body unreadable (${BODY}): ${error?.message ?? error}`)
       return
     }
-    ctx.skills.register({ name: SKILL_NAME, description: DESCRIPTION, content })
+    // `source` 是必填：少了它 skill 能列出来却在加载时炸（validateDefinition 要求它是字符串）
+    ctx.skills.register({ name: SKILL_NAME, description: DESCRIPTION, source: SKILL_SOURCE, content })
   },
 }

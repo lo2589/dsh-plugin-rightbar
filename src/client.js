@@ -38,6 +38,8 @@ window.__ModuleLoader__.load({
     var DEFAULT_WIDTH = 420
     var LAYER = 600
     var ACTIVATE_EVENT = 'rightbar:activate'
+    var ADOPT_KEY = 'rightbar.adopt'
+    var ADOPTED_ATTR = 'data-rightbar-adopted'
 
     // ---- per-viewer prefs (localStorage may be missing or throw) ----------
 
@@ -120,6 +122,120 @@ window.__ModuleLoader__.load({
         window.addEventListener(ACTIVATE_EVENT, onActivate)
         return function () { window.removeEventListener(ACTIVATE_EVENT, onActivate) }
       }, [pick, setOpen])
+    }
+
+    // ---- legacy panels: step aside, never re-parent --------------------------
+    //
+    // 别的插件还没迁进 rightbar.tab 时，它的面板通常是自己 position:fixed; right:0。
+    // 这里**默认什么都不做**：按样式猜"这是右栏"会误伤模态、toast、浮动工具栏，
+    // 而且一旦被人看见"我的插件坏了"，坏的是本仓库的名声 ⇒ 必须用户显式开。
+    //
+    //   localStorage['rightbar.adopt'] = 'declared'（默认关 · 只处理声明了的）
+    //                                  | 'all'（按样式猜，用户自担）
+    //
+    // 手法只有一种：把它的 right 改成 var(--rightbar-w)，**不搬 DOM**。
+    // 原因：React 17+ 的合成事件挂在 root 容器上，节点跨容器移动会让别人的事件与状态错乱；
+    // 而改一个偏移量最坏只是位置偏一点，永远不会让别人的插件崩。
+    function readRawPref(key) {
+      try {
+        var raw = window.localStorage.getItem('rightbar.' + key)
+        return raw === null ? '' : String(raw)
+      } catch (e) { return '' }
+    }
+
+    /** off（默认）· declared · all。写在 localStorage 里，改完要刷新页面。 */
+    function adoptMode() {
+      var raw = readRawPref('adopt').trim().toLowerCase().replace(/^"|"$/g, '')
+      if (raw === 'declared' || raw === 'all') return raw
+      if (raw === 'true' || raw === '1') return 'declared'
+      return 'off'
+    }
+
+    function createAdopter(doc, win) {
+      var adopted = []
+      var timer = null
+      var mode = 'off'
+
+      function isOurs(el) {
+        for (var node = el; node; node = node.parentNode) {
+          if (typeof node.className === 'string' && /(^|\s)rb-(panel|strip)(\s|$)/.test(node.className)) return true
+        }
+        return false
+      }
+
+      /** 保守的"右侧浮层"判据：fixed + 贴右 + 不是全屏遮罩 + 不是小浮层。 */
+      function looksLikeRightPanel(el) {
+        var cs = win.getComputedStyle ? win.getComputedStyle(el) : null
+        if (!cs || cs.position !== 'fixed') return false
+        var right = parseFloat(cs.right)
+        if (!isFinite(right) || Math.abs(right) > 1) return false
+        var rect = el.getBoundingClientRect ? el.getBoundingClientRect() : null
+        var w = rect ? rect.width : parseFloat(cs.width)
+        if (!isFinite(w) || w <= 0) return false
+        if (w > (win.innerWidth || 0) * 0.8) return false      // 全屏模态 / 遮罩：不碰
+        var h = rect ? rect.height : parseFloat(cs.height)
+        if (isFinite(h) && h < 120) return false               // toast / 小浮层：不碰
+        return true
+      }
+
+      function candidates() {
+        var out = []
+        if (!doc.querySelectorAll) return out
+        if (mode === 'declared') {
+          var declared = doc.querySelectorAll('[data-rightbar-adopt]')
+          for (var i = 0; i < declared.length; i++) out.push(declared[i])
+          return out
+        }
+        var kids = (doc.body && doc.body.children) || []
+        for (var j = 0; j < kids.length; j++) if (looksLikeRightPanel(kids[j])) out.push(kids[j])
+        return out
+      }
+
+      function alreadyAdopted(el) {
+        for (var i = 0; i < adopted.length; i++) if (adopted[i].el === el) return true
+        return false
+      }
+
+      function adopt(el) {
+        if (!el || !el.style || alreadyAdopted(el) || isOurs(el)) return
+        var prev = el.style.getPropertyValue('right')
+        var priority = el.style.getPropertyPriority ? el.style.getPropertyPriority('right') : ''
+        adopted.push({ el: el, prev: prev, priority: priority })
+        el.style.setProperty('right', 'var(' + WIDTH_VAR + ', 0px)', 'important')
+        try { el.setAttribute(ADOPTED_ATTR, '1') } catch (e) { /* 只读元素：无所谓 */ }
+      }
+
+      function release(record) {
+        try {
+          if (record.prev) record.el.style.setProperty('right', record.prev, record.priority || '')
+          else record.el.style.removeProperty('right')
+          record.el.removeAttribute(ADOPTED_ATTR)
+        } catch (e) { /* 元素可能已经被别人删了 */ }
+      }
+
+      function scan() {
+        if (mode === 'off') return
+        var list = candidates()
+        for (var i = 0; i < list.length; i++) adopt(list[i])
+      }
+
+      /** 合并同一帧里的一堆变更（别的插件可能一次插入几十个节点）。 */
+      function schedule() {
+        if (mode === 'off' || timer !== null) return
+        timer = win.setTimeout(function () { timer = null; scan() }, 150)
+      }
+
+      return {
+        start: function (nextMode) { mode = nextMode; scan() },
+        scan: scan,
+        schedule: schedule,
+        dispose: function () {
+          if (timer !== null) { try { win.clearTimeout(timer) } catch (e) { /* 无妨 */ } timer = null }
+          for (var i = 0; i < adopted.length; i++) release(adopted[i])
+          adopted.length = 0
+          mode = 'off'
+        },
+      }
     }
 
     // ---- views ---------------------------------------------------------------
@@ -218,6 +334,34 @@ window.__ModuleLoader__.load({
       '.rb-demo-note{color:var(--dsw-alias-label-secondary,#888);font-size:12px}',
     ].join('')
 
+    /** 让老面板让位的这套只在用户显式打开时启动（见上面 createAdopter 的注释）。 */
+    function startAdoption(doc, win) {
+      var mode = adoptMode()
+      if (mode === 'off') return
+      var adopter = createAdopter(doc, win)
+      adopter.start(mode)
+      var observer = null
+      try {
+        var MutationObserver = win.MutationObserver
+        if (typeof MutationObserver === 'function' && doc.body) {
+          observer = new MutationObserver(function () { adopter.schedule() })
+          observer.observe(doc.body, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['data-rightbar-adopt', 'style', 'class'],
+          })
+        }
+      } catch (e) { observer = null }   // 观察不到就只做一次初始扫描，不报错
+      var onResize = function () { adopter.schedule() }
+      try { win.addEventListener('resize', onResize) } catch (e) { /* 无妨 */ }
+      return function () {
+        try { observer && observer.disconnect() } catch (e) { /* 无妨 */ }
+        try { win.removeEventListener('resize', onResize) } catch (e) { /* 无妨 */ }
+        adopter.dispose()
+      }
+    }
+
     function apply(ctx) {
       var slots = ctx.get('slots')
       if (slots === undefined) return
@@ -228,6 +372,7 @@ window.__ModuleLoader__.load({
         document.head.appendChild(style)
         return function () { style.remove() }
       })
+      ctx.effect(function () { return startAdoption(document, window) })
       var Rightbar = makeRightbar(slots)
       slots.inject('shell.overlay', function () {
         return slots.register({

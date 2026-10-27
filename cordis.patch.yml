@@ -1,6 +1,13 @@
-# dsh-plugin-rightbar — host entry. The client half registers under the package
-# name (`dsh-plugin-rightbar`); `rightbar` is the cordis entry id.
+# dsh-plugin-rightbar — bundle entries.
+#
+# `rightbar`       → the plugin itself (empty host half; the sidebar is browser-side).
+#                    The client half registers under the package name.
+# `rightbar-skill` → a dependency-free row that publishes the `rightbar-tab` skill, so an
+#                    agent with this plugin installed knows how to register a tab.
 - insert:
     - id: rightbar
       name: dsh-plugin-rightbar
+      config: {}
+    - id: rightbar-skill
+      name: dsh-plugin-rightbar/skill
       config: {}

@@ -114,6 +114,44 @@ window.dispatchEvent(new CustomEvent('rightbar:activate', { detail: { id: 'my-pl
 
 ---
 
+## 自带的 skill（给 agent 看的）
+
+装了这个插件，你的 **agent 会话 skill 目录里会多一条 `rightbar-tab`** —— 内容是"怎么给 rightbar 挂 tab"：
+槽位名、注册调用、三条硬性要求、把 rightbar 当可选座位的写法、`rightbar:activate` 事件，以及下面那个让位开关。
+
+它由 `cordis.patch.yml` 的第二行 `rightbar-skill` 提供（`src/skill.js`，依赖为零：只调
+`ctx.skills.register()`，读不到正文就只 warn 不启用）。所以以后让 agent 给你写新面板时，它不用读这个
+仓库也知道该往哪挂。
+
+---
+
+## 让还没迁过来的面板让位（默认关）
+
+别的插件的老面板如果是自己 `position:fixed; right:0`，会和右栏重叠。本插件能按下面这套处理，但
+**默认一个都不碰**：
+
+| `localStorage['rightbar.adopt']` | 行为 |
+| --- | --- |
+| 不设 / `off`（默认） | 什么都不做 |
+| `declared` | 只处理自己加了 `data-rightbar-adopt="1"` 的面板 |
+| `all` | 按样式猜：同时满足 fixed、`right≈0`、宽度 < 窗口 80%、高度 ≥ 120px 的 **body 直接子元素** |
+
+```js
+localStorage.setItem('rightbar.adopt', 'declared')   // 然后刷新页面
+```
+
+⚠️ 为什么默认关：
+
+- 只能靠样式猜，误伤面很大（模态、遮罩、toast、浮动工具栏都可能是 fixed + 贴右）；
+- 收编动作只有一种 —— **把它的 `right` 改成 `var(--rightbar-w)`，绝不搬 DOM**。React 17+ 的合成事件挂在
+  root 容器上，节点跨容器移动会让别人的事件与状态错乱；只改偏移量最坏是位置偏一点，不会让别人的插件崩；
+- 默认开启等于告诉生态"不用改代码，rightbar 会捡"，契约就没人迁了。
+
+被收编的面板会打上 `data-rightbar-adopted="1"`；卸载或关掉时**原样还回去**（原来的 inline `right`
+优先保留）。它只是兼容性照顾，不是契约 —— 正式做法仍是注册一个 tab。
+
+---
+
 ## 契约（也给别人看的接口）
 
 | 项 | 值 |
@@ -127,6 +165,8 @@ window.dispatchEvent(new CustomEvent('rightbar:activate', { detail: { id: 'my-pl
 | 尺寸 | 默认宽 420 · 最小 280 · 最大窗口宽 70% · 收起时 32 |
 | 浏览器偏好 | `localStorage`：`rightbar.open` / `rightbar.active` / `rightbar.width` |
 | 演示标签开关 | `localStorage`：`rightbar.demo` |
+| 让位开关 | `localStorage`：`rightbar.adopt`（`off` 默认 / `declared` / `all`） |
+| 让位标记 | 面板上加 `data-rightbar-adopt`；被收编后变成 `data-rightbar-adopted="1"` |
 
 ---
 
@@ -146,6 +186,13 @@ DSH_REPO=$PWD node --import tsx/esm /path/to/dsh-plugin-rightbar/tests/slot-core
 第二次声明被拒、只渲染当前标签、卸载时标签一起撤、重新挂载时注册者自动回来。
 
 ⚠️ 这个单测**抓不到**层级遮挡和 Safari 裁剪这两类问题，它们必须在真页面上看（见下面报错记录）。
+
+另外两个测试**不需要 harness**，直接从插件目录跑（纯 node）：
+
+```bash
+node tests/skill-register.mjs   # 自带的 rightbar-tab skill：字段合法性、正文口径、正文读不到时只 warn
+node tests/adopt.mjs            # 让位开关：默认关、只认声明、不碰自己的面板、卸载还原、all 模式的保守判据
+```
 
 ---
 

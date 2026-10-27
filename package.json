@@ -8,10 +8,12 @@
   "exports": {
     ".": "./src/host.js",
     "./client": "./src/client.js",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./skill": "./src/skill.js"
   },
   "files": [
     "src",
+    "skills",
     "cordis.patch.yml",
     "README.md",
     "LICENSE"
